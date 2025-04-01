@@ -1,8 +1,6 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import joblib
-from fueling_engine import goal_logic_run, recommend_macros
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
@@ -10,7 +8,35 @@ import shap
 from datetime import datetime
 import csv
 
-st.set_page_config(page_title="Endurithm Fueling Dashboard", layout="wide")
+from fueling_engine import goal_logic_run, recommend_macros
+
+# Page config
+st.set_page_config(page_title="Endurithm | Fueling Intelligence", layout="wide")
+
+# Custom CSS styling
+st.markdown("""
+    <style>
+    html, body, [class*="css"]  {
+        font-family: 'Segoe UI', sans-serif;
+        color: #333333;
+    }
+    .main-title {
+        font-size: 2.5em;
+        font-weight: 600;
+        color: #2C3E50;
+        margin-bottom: 0.2em;
+    }
+    .subtitle {
+        font-size: 1.1em;
+        color: #5E6A75;
+        margin-bottom: 2em;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Hero section
+st.markdown('<div class="main-title">Endurithm</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Precision fueling and macronutrient recommendations for endurance athletes.</div>', unsafe_allow_html=True)
 
 # Load model and encoders
 BASE_DIR = os.path.dirname(__file__)
@@ -18,21 +44,9 @@ model = joblib.load(os.path.join(BASE_DIR, "..", "models", "lightgbm_calorie_mod
 encoder_sex = joblib.load(os.path.join(BASE_DIR, "..", "models", "encoder_sex.pkl"))
 encoder_session = joblib.load(os.path.join(BASE_DIR, "..", "models", "encoder_session.pkl"))
 
-
-
-# Define features
-features = [
-    "age", "sex", "weight_kg", "vo2_max", "resting_hr", "baseline_hrv",
-    "avg_hr", "max_hr", "distance_km", "duration_min", "elevation_gain_m",
-    "sleep_hrs_prior", "hrv_today", "temp_c", "session_type",
-    "hr_fluctuation", "fatigue_index", "depletion_score"
-]
-
-st.title("Endurithm: Athlete Fueling & Macro Recommendation")
-
-# Sidebar: athlete input
+# Sidebar for athlete input
 with st.sidebar:
-    st.header("🧍 Athlete Profile")
+    st.markdown("### Athlete Profile")
     user_id = st.text_input("Athlete ID", "A001")
     age = st.slider("Age", 18, 50, 23)
     height = st.number_input("Height (cm)", value=180)
@@ -42,26 +56,40 @@ with st.sidebar:
         "marathon_running", "track_and_field_distance", "track_and_field_mid", "track_and_field_power"
     ])
 
-    st.header("🏋️‍♂️ Workout Session")
+    st.markdown("---")
+    st.markdown("### Workout Session")
+
     sex = st.selectbox("Sex", ["M", "F"])
     session_type = st.selectbox("Session Type", ["long_run", "tempo", "intervals"])
-    vo2_max = st.slider("VO₂ Max", 30, 75, 50)
-    resting_hr = st.slider("Resting HR", 35, 80, 55)
-    baseline_hrv = st.slider("Baseline HRV", 50, 120, 80)
-    avg_hr = st.slider("Average HR", 100, 190, 160)
-    max_hr = st.slider("Max HR", avg_hr+5, 200, avg_hr+15)
-    distance_km = st.slider("Distance (km)", 1.0, 42.0, 10.0)
-    duration_min = st.slider("Duration (min)", 20, 240, 60)
-    elevation_gain_m = st.slider("Elevation Gain (m)", 0, 1000, 100)
-    sleep_hrs_prior = st.slider("Sleep (hrs prior)", 0.0, 12.0, 7.5)
-    hrv_today = st.slider("HRV Today", 30.0, 120.0, 75.0)
-    temp_c = st.slider("Temperature (°C)", -10, 40, 20)
+    age = st.number_input("Age", min_value=18, max_value=50, value=23, step=1)
+    vo2_max = st.number_input("VO₂ Max", min_value=30, max_value=75, value=50)
+    resting_hr = st.number_input("Resting HR", min_value=35, max_value=80, value=55)
+    baseline_hrv = st.number_input("Baseline HRV", min_value=50, max_value=120, value=80)
+    avg_hr = st.number_input("Average HR", min_value=100, max_value=190, value=160)
+    max_hr = st.number_input("Max HR", min_value=avg_hr + 5, max_value=200, value=avg_hr + 15)
+    distance_km = st.number_input("Distance (km)", min_value=1.0, max_value=42.0, value=10.0, step=0.1)
+    duration_min = st.number_input("Duration (min)", min_value=20, max_value=240, value=60, step=1)
+    elevation_gain_m = st.number_input("Elevation Gain (m)", min_value=0, max_value=1000, value=100)
+    sleep_hrs_prior = st.number_input("Sleep (hrs prior)", min_value=0.0, max_value=12.0, value=7.5, step=0.1)
+    hrv_today = st.number_input("HRV Today", min_value=30.0, max_value=120.0, value=75.0, step=0.1)
+    temp_c = st.number_input("Temperature (°C)", min_value=-10, max_value=40, value=20)
+
+    st.markdown("---")
+    st.markdown("Help improve Endurithm: [Submit Feedback](https://forms.gle/your_form_link)")
 
 # Encode categorical variables
 encoded_sex = encoder_sex.transform([sex])[0]
 encoded_session = encoder_session.transform([session_type])[0]
 
-# Feature engineering
+# Define features used in the model
+features = [
+    "age", "sex", "weight_kg", "vo2_max", "resting_hr", "baseline_hrv",
+    "avg_hr", "max_hr", "distance_km", "duration_min", "elevation_gain_m",
+    "sleep_hrs_prior", "hrv_today", "temp_c", "session_type",
+    "hr_fluctuation", "fatigue_index", "depletion_score"
+]
+
+# Feature engineering UNIQUE ASPECTS
 depletion_score = duration_min * avg_hr
 hr_fluctuation = max_hr - avg_hr
 fatigue_index = (baseline_hrv - hrv_today) if hrv_today < baseline_hrv else 0
